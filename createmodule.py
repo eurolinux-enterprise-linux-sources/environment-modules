@@ -17,6 +17,7 @@
 
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
+from __future__ import print_function
 
 from optparse import OptionParser
 import os,sys,re
@@ -41,13 +42,13 @@ def getenv(cmd = ':'):
     p = Popen(cmd + ";env", shell=True, stdout=PIPE, stderr=PIPE)
     (stdout, stderr) = p.communicate()
     if p.returncode != 0:
-        print "EROR: Could not execute initscript:"
-        print "%s returned exit code %d" % (cmd, p.returncode)
-        print stderr
+        print("EROR: Could not execute initscript:")
+        print("%s returned exit code %d" % (cmd, p.returncode))
+        print(stderr)
         exit(1)
     if stderr != '':
-        print "WARNING: initscript sent the following to stderr:"
-        print stderr
+        print("WARNING: initscript sent the following to stderr:")
+        print(stderr)
     # Parse the output key=value pairs
     skip = False
     for line in stdout.splitlines():
@@ -58,8 +59,8 @@ def getenv(cmd = ':'):
         try:
             (var,value) = line.split('=',1)
         except ValueError:
-            print "ERROR: Could not parse output line:"
-            print line
+            print("ERROR: Could not parse output line:")
+            print(line)
             exit(1)
         # Exported functions - not handled
         if value.find('() {') == 0:
@@ -78,6 +79,7 @@ env2=getenv(". " + " ".join(args))
 chdir = None
 appendpath = {}
 prependpath = {}
+unhandled = {}
 setenv = {}
 unsetenv = []
 pathnames = []
@@ -87,7 +89,7 @@ def normpaths(paths):
     newpaths = []
     for path in paths:
         normpath = os.path.normpath(path)
-        if normpath not in newpaths:
+        if normpath not in newpaths and normpath != '.':
              newpaths.append(os.path.normpath(path))
     return newpaths
 
@@ -108,19 +110,36 @@ for key in env1.keys():
         del env2[key]
         continue
     # Determine modifcations to beginning and end of the string
-    (prepend,append) = env2[key].split(env1[key])
+    try:
+        (prepend,append) = env2[key].split(env1[key])
+    except ValueError:
+         continue
     if prepend:
-        prependpaths = prepend.strip(':').split(':')
+        presep = prepend[-1:]
+        prependpaths = prepend.strip(presep).split(presep)
         # LICENSE variables often include paths outside install directory
         if 'LICENSE' not in key:
             pathnames += prependpaths
-        prependpath[key] = ':'.join(normpaths(prependpaths))
+        if presep not in prependpath:
+            prependpath[presep] = {}
+        newpath = presep.join(normpaths(prependpaths))
+        if newpath:
+            prependpath[presep][key] = newpath
+        else:
+            unhandled[key] = env2[key]
     if append:
-        appendpaths = append.strip(':').split(':')
+        appsep = append[0:1]
+        appendpaths = append.strip(appsep).split(appsep)
         # LICENSE variables often include paths outside install directory
         if 'LICENSE' not in key:
             pathnames += appendpaths
-        appendpath[key] = ':'.join(normpaths(appendpaths))
+        if appsep not in appendpath:
+            appendpath[appsep] = {}
+        newpath = appsep.join(normpaths(appendpaths))
+        if newpath:
+            appendpath[appsep][key] = newpath
+        else:
+            unhandled[key] = env2[key]
     del env2[key]
 
 # We're left with new keys in env2
@@ -132,12 +151,24 @@ for key in env2.keys():
         # LICENSE variables often include paths outside install directory
         if key != 'MANPATH' and 'LICENSE' not in key:
             pathnames += prependpaths
-        prependpath[key] = ':'.join(normpaths(prependpaths))
+        if ':' not in prependpath:
+            prependpath[':'] = {}
+        prependpath[':'][key] = ':'.join(normpaths(prependpaths))
         continue
     # Set new variables
     setenv[key] = os.path.normpath(env2[key])
     if 'LICENSE' not in key:
         pathnames.append(setenv[key])
+
+# Report unhandled keys
+for key in unhandled.keys():
+    print("Unhandled change of", key, file=sys.stderr)
+    print("Before <%s>" % env1[key], file=sys.stderr)
+    print("After <%s>" % unhandled[key], file=sys.stderr)
+    for sepkey in appendpath.keys():
+        appendpath[sepkey].pop(key, None)
+    for sepkey in prependpath.keys():
+        prependpath[sepkey].pop(key, None)
 
 # Determine a prefix
 prefix=None
@@ -149,48 +180,58 @@ elif not options.noprefix:
           prefix = None
 
 # Print out the modulefile
-print "#%Module 1.0"
+print("#%Module 1.0")
 
 # Prefix
 if prefix is not None:
-    print "\nset prefix " + prefix + "\n"
+    print("\nset prefix " + prefix + "\n")
 
 # Chdir
 if chdir is not None:
-    print "chdir\t" + chdir
+    print("chdir\t" + chdir)
 
 # Function to format output line with tabs and substituting prefix
 def formatline(item, key, value=None):
-    print item,
-    print "\t"*(2-(len(item)+1)/8),
-    print key,
+    print(item, end=' ')
+    print("\t"*(2-(len(item)+1)/8), end=' ')
+    print(key, end=' ')
     if value is not None:
-        print "\t"*(3-(len(key)+1)/8),
+        print("\t"*(3-(len(key)+1)/8), end=' ')
         if prefix is not None:
-            print value.replace(prefix,'$prefix')
+            print(value.replace(prefix,'$prefix'))
         else:
-            print value
+            print(value)
 
 # Paths first, grouped by variable name
-pathkeys = appendpath.keys() + prependpath.keys()
-pathkeys.sort()
-for key in pathkeys:
-    if key in prependpath:
-        formatline("prepend-path",key,prependpath[key])
-    if key in appendpath:
-        formatline("append-path",key,appendpath[key])
+for sepkey in prependpath.keys():
+    pathkeys = prependpath[sepkey].keys()
+    pathkeys.sort()
+    for key in pathkeys:
+        if sepkey == ":":
+            formatline("prepend-path",key,prependpath[sepkey][key])
+        else:
+            formatline("prepend-path --delim %s" % sepkey,key,prependpath[sepkey][key])
+
+for sepkey in appendpath.keys():
+    pathkeys = appendpath[sepkey].keys()
+    pathkeys.sort()
+    for key in pathkeys:
+        if sepkey == ":":
+            formatline("append-path",key,appendpath[sepkey][key])
+        else:
+            formatline("append-path --delim %s" % sepkey,key,appendpath[sepkey][key])
 
 # Setenv
-setenvkeys = setenv.keys()
+setenvkeys = list(setenv.keys())
 setenvkeys.sort()
 if setenvkeys:
-    print
+    print()
 for key in setenvkeys:
     formatline("setenv",key,setenv[key])
 
 # Unsetenv
 unsetenv.sort()
 if unsetenv:
-    print
+    print()
 for key in unsetenv:
     formatline("unsetenv",key)

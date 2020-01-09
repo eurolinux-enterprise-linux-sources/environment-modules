@@ -1,7 +1,7 @@
 %global __os_install_post %(echo '%{__os_install_post}' | sed -e 's!/usr/lib[^[:space:]]*/brp-python-bytecompile[[:space:]].*$!!g')
 Name:           environment-modules
 Version:        3.2.10
-Release:        2%{?dist}
+Release:        3%{?dist}
 Summary:        Provides dynamic modification of a user's environment
 
 Group:          System Environment/Base
@@ -104,6 +104,9 @@ rm -rf $RPM_BUILD_ROOT
 
 
 %changelog
+* Mon Nov  2 2015 Jan Synáček <jsynacek@redhat.com> - 3.2.10-3
+- fix: createmodule scripts incorrectly handles env vars prefixed/suffixed without colon (#1180139)
+
 * Thu Nov 27 2014 Jan Synáček <jsynacek@redhat.com> - 3.2.10-2
 - fix: SourceVers wrongly sets version in nested directory (#979789)
 - fix: unload from loaded modulefile broken (#1117307)
