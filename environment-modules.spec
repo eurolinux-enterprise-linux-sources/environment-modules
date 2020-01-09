@@ -1,7 +1,7 @@
 %global __os_install_post %(echo '%{__os_install_post}' | sed -e 's!/usr/lib[^[:space:]]*/brp-python-bytecompile[[:space:]].*$!!g')
 Name:           environment-modules
 Version:        3.2.9c
-Release:        4%{?dist}
+Release:        6%{?dist}
 Summary:        Provides dynamic modification of a user's environment
 
 Group:          System Environment/Base
@@ -14,6 +14,7 @@ Patch1:         environment-modules-3.2.9-clear.patch
 Patch2:         environment-modules-3.2.9-invalid-regexp-pointer.patch
 Patch3:         environment-modules-3.2.9-module-path.patch
 Patch4:         environment-modules-3.2.9-gcc-no-strict.patch
+Patch5:         environment-modules-3.2.9-call-test-by-full-path-in-csh.patch
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 
 BuildRequires:  tcl-devel, tclx-devel, libX11-devel
@@ -52,6 +53,7 @@ have access to the module alias.
 %patch2 -p1 -b .invalid-rp
 %patch3 -p1 -b .module-path
 %patch4 -p1 -b .gcc-no-strict
+%patch5 -p1 -b .call-test-by-full-path-in-csh
 
 
 %build
@@ -81,14 +83,32 @@ rm -rf $RPM_BUILD_ROOT
 %defattr(-,root,root,-)
 %doc LICENSE.GPL README TODO
 %{_sysconfdir}/modulefiles
-%{_sysconfdir}/profile.d/*
+%config(noreplace) %{_sysconfdir}/profile.d/*
+# as %{_sysconfdir}/profile.d/modules.csh is a symlink to this file, it has to
+# be marked as config(noreplace) as well if we want to preserve the changes
+%config(noreplace) %{_datadir}/Modules/init/csh
 %{_bindir}/modulecmd
-%{_datadir}/Modules/
+%dir %{_datadir}/Modules
+%{_datadir}/Modules/bin/
+%dir %{_datadir}/Modules/init
+%{_datadir}/Modules/init/*
+%config(noreplace) %{_datadir}/Modules/init/.modulespath
+%{_datadir}/Modules/modulefiles
 %{_mandir}/man1/module.1.gz
 %{_mandir}/man4/modulefile.4.gz
 
 
 %changelog
+* Tue May 14 2013 Jan Synáček <jsynacek@redhat.com> - 3.2.9c-6
+- Call test command in csh alias by its full path (bug #929007)
+- Correctly preserve the target file that the config symlink points to
+  (this change makes the previous fix for bug #953198 whole)
+
+* Mon May 13 2013 Jan Synáček <jsynacek@redhat.com> - 3.2.9c-5
+- Make .modulespath a config file (bug #918540)
+- Do not replace modified profile.d scripts (bug #953198)
+- Remove use of test command in csh alias (bug #929007)
+
 * Wed Sep 12 2012 Jan Synáček <jsynacek@redhat.com> - 3.2.9c-4
 - Revert timestamps fix attempt
 - Prevent rpm from bytecompiling the internal python file
