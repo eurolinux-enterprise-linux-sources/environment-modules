@@ -1,7 +1,7 @@
 %global __os_install_post %(echo '%{__os_install_post}' | sed -e 's!/usr/lib[^[:space:]]*/brp-python-bytecompile[[:space:]].*$!!g')
 Name:           environment-modules
 Version:        3.2.10
-Release:        1%{?dist}
+Release:        2%{?dist}
 Summary:        Provides dynamic modification of a user's environment
 
 Group:          System Environment/Base
@@ -16,6 +16,8 @@ Patch1:         environment-modules-3.2.9-clear.patch
 Patch3:         environment-modules-3.2.9-module-path.patch
 Patch4:         environment-modules-3.2.9-gcc-no-strict.patch
 Patch5:         environment-modules-3.2.9-call-test-by-full-path-in-csh.patch
+Patch6:         environment-modules-3.2.10-ignore-nested-dirs.patch
+Patch7:         environment-modules-3.2.10-unload-from-module.patch
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 
 BuildRequires:  tcl-devel, tclx-devel, libX11-devel
@@ -54,6 +56,8 @@ have access to the module alias.
 %patch3 -p1 -b .module-path
 %patch4 -p1 -b .gcc-no-strict
 %patch5 -p1 -b .call-test-by-full-path-in-csh
+%patch6 -p1 -b .ignore-nested-dirs
+%patch7 -p1 -b .unload-from-module
 
 
 %build
@@ -100,6 +104,10 @@ rm -rf $RPM_BUILD_ROOT
 
 
 %changelog
+* Thu Nov 27 2014 Jan Synáček <jsynacek@redhat.com> - 3.2.10-2
+- fix: SourceVers wrongly sets version in nested directory (#979789)
+- fix: unload from loaded modulefile broken (#1117307)
+
 * Thu Mar 13 2014 Jan Synáček <jsynacek@redhat.com> - 3.2.10-1
 - Rebase to 3.2.10
 - Drop regexp patch
@@ -198,7 +206,7 @@ rm -rf $RPM_BUILD_ROOT
 * Wed Dec 20 2006 - Orion Poplawski <orion@cora.nwra.com> - 3.2.3-3
 - Add --with-version-path to set VERSIONPATH (bug 220260)
 
-* Tue Aug 28 2006 - Orion Poplawski <orion@cora.nwra.com> - 3.2.3-2
+* Tue Aug 29 2006 - Orion Poplawski <orion@cora.nwra.com> - 3.2.3-2
 - Rebuild for FC6
 
 * Fri Jun  2 2006 - Orion Poplawski <orion@cora.nwra.com> - 3.2.3-1
