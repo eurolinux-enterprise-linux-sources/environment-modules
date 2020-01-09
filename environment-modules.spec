@@ -1,6 +1,6 @@
 Name:           environment-modules
 Version:        3.2.10
-Release:        8%{?dist}
+Release:        10%{?dist}
 Summary:        Provides dynamic modification of a user's environment
 
 Group:          System Environment/Base
@@ -20,6 +20,8 @@ Patch2:         environment-modules-clear.patch
 # Patch from modules list to add completion to avail command
 Patch3:         environment-modules-avail.patch
 Patch4:         environment-modules-3.2.9-call-test-by-full-path-in-csh.patch
+Patch5:         environment-modules-3.2.10-ignore-nested-dirs.patch
+Patch6:         environment-modules-3.2.10-unload-from-module.patch
 
 BuildRequires:  tcl-devel, tclx-devel, libX11-devel
 BuildRequires:  dejagnu
@@ -59,6 +61,8 @@ have access to the module alias.
 %patch2 -p1 -b .clear
 %patch3 -p1 -b .avail
 %patch4 -p1 -b .call-test-by-full-path-in-csh
+%patch5 -p1 -b .ignore-nested-dirs
+%patch6 -p1 -b .unload-from-module
 
 
 %build
@@ -100,6 +104,13 @@ make test
 
 
 %changelog
+* Mon Jun 22 2015 Jan Synáček <jsynacek@redhat.com> - 3.2.10-10
+- fix: createmodule scripts incorrectly handles env vars prefixed/suffixed without colon (#1233223)
+
+* Wed Apr 29 2015 Jan Synáček <jsynacek@redhat.com> - 3.2.10-9
+- fix: SourceVers wrongly sets version in nested directory (#1180652)
+- fix: unload from loaded modulefile broken (#1117327)
+
 * Fri Jan 24 2014 Daniel Mach <dmach@redhat.com> - 3.2.10-8
 - Mass rebuild 2014-01-24
 
@@ -238,7 +249,7 @@ make test
 * Wed Dec 20 2006 - Orion Poplawski <orion@cora.nwra.com> - 3.2.3-3
 - Add --with-version-path to set VERSIONPATH (bug 220260)
 
-* Tue Aug 28 2006 - Orion Poplawski <orion@cora.nwra.com> - 3.2.3-2
+* Tue Aug 29 2006 - Orion Poplawski <orion@cora.nwra.com> - 3.2.3-2
 - Rebuild for FC6
 
 * Fri Jun  2 2006 - Orion Poplawski <orion@cora.nwra.com> - 3.2.3-1

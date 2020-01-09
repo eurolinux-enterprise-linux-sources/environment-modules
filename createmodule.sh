@@ -48,8 +48,11 @@ printenvarray () {
   env | while read x
   do
     key=${x%%=*}
-    value=${x#*=}
-    echo [$key]="'$value'"
+    value=`printenv "$key"`
+    if [ $? -eq 0 ]
+    then
+      echo [$key]="'$value'"
+    fi
   done
 }
 
@@ -71,11 +74,13 @@ echo "#%Module 1.0"
 #Prefix
 [ -n "$prefix" ] && echo -e "\nset prefix $prefix\n"
 
+# dedup - remove duplicate entries from a list
 #Subshell so we can sort the output
 (
 dedup() {
   list=`mktemp`
-  echo $1 | sed -r -e 's,[^/]+/\.\./,,g' -e 's,[^/]+/\.\./,,g' -e 's/:/\n/g' |
+  [ -n "$2" ] && sep=$2 || sep=:
+  echo $1 | sed -r -e 's,[^/]+/\.\./,,g' -e 's,[^/]+/\.\./,,g' -e "s/\\$sep/\n/g" |
     while read x
     do
       grep -Fx ${x} $list && continue
@@ -86,7 +91,7 @@ dedup() {
         echo $x
       fi
       echo $x >> $list
-    done | tr '\n' : | sed -e 's/:$//'
+    done | tr '\n' $sep | sed -e "s/\\$sep\$//"
   rm $list
 } 
     
@@ -111,25 +116,61 @@ do
     #Test for prepend
     elif [ "${env2[$key]%${env1[$key]}}" != "${env2[$key]}" ]
     then
-      added=$(dedup ${env2[$key]%:${env1[$key]}})
-      echo -e "prepend-path\t$key\t${added}"
+      added=${env2[$key]%${env1[$key]}}
+      sep=${added: -1}
+      added=${added%$sep}
+      added=$(dedup $added $sep)
+      if [ $sep = : ]
+      then
+        echo -e "prepend-path\t$key\t${added}"
+      else
+        echo -e "prepend-path\t--delim $sep\t$key\t${added}"
+      fi
     #Test for prepend plus : added at end (MANPATH)
-    elif [ "${env2[$key]%${env1[$key]}:}" != "${env2[$key]}" ]
+    elif [ "${key: -4}" = PATH -a "${env2[$key]%${env1[$key]}:}" != "${env2[$key]}" ]
     then
       added=$(dedup ${env2[$key]%${env1[$key]}:})
       echo -e "prepend-path\t$key\t${added}"
     #Test for append
     elif [ "${env2[$key]#${env1[$key]}}" != "${env2[$key]}" ]
     then
-      added=$(dedup ${env2[$key]#:${env1[$key]}})
-      echo -e "append-path\t$key\t${added}"
+      added=${env2[$key]#${env1[$key]}}
+      sep=${added:0:1}
+      added=${added#$sep}
+      added=$(dedup $added $sep)
+      if [ $sep = : ]
+      then
+        echo -e "append-path\t$key\t${added}"
+      else
+        echo -e "append-path\t--delim $sep\t$key\t${added}"
+      fi
     #Test for prepend plus append
-    elif [ "${env2[$key]%${env1[$key]}:*}" != "${env2[$key]}" ]
+    elif [ "${env2[$key]%${env1[$key]}*}" != "${env2[$key]}" ]
     then
-      added=$(dedup ${env2[$key]%:${env1[$key]}*})
-      echo -e "prepend-path\t$key\t${added}"
-      added=$(dedup ${env2[$key]#*${env1[$key]}:})
-      echo -e "append-path\t$key\t${added}"
+      prepended=${env2[$key]%${env1[$key]}*}
+      presep=${prepended: -1}
+      prepended=${prepended%$presep}
+      prepended=$(dedup $prepended $presep)
+      appended=${env2[$key]#*${env1[$key]}}
+      appsep=${appended:0:1}
+      appended=${appended#$appsep}
+      appended=$(dedup $appended $appsep)
+      if [ $presep != $appsep -o -z "$prepended" -o -z "$appended" ]
+      then
+        #Unhandled
+        echo "Unhandled change of $key" 1>&2
+        echo "Before <${env1[$key]}>" 1>&2
+        echo "After  <${env2[$key]}>" 1>&2
+      else
+        if [ $presep = : ]
+        then
+          echo -e "prepend-path\t$key\t${prepended}"
+          echo -e "append-path\t$key\t${appended}"
+        else
+          echo -e "prepend-path\t--delim $presep\t$key\t${prepended}"
+          echo -e "append-path\t--delim $appsep\t$key\t${appended}"
+        fi
+      fi
     else
       #Unhandled
       echo "Unhandled change of $key" 1>&2
@@ -137,7 +178,7 @@ do
       echo "After  <${env2[$key]}>" 1>&2
     fi
   fi
-  #Delete keys we've handled
+  #Delete keys we have handled
   unset env1[$key]
   unset env2[$key]
 done
@@ -150,7 +191,7 @@ do
     continue
   fi
   #Use prepend-path for new paths
-  if [ "${key/PATH/}" != "$key" ]
+  if [ "${key: -4}" = PATH -o "${key: -4}" = DIRS -o "${key: -4}" = FILES ]
   then
     # TODO - Need to handle stripping of default MANPATH
     echo -e "prepend-path\t${key}\t"$(dedup ${env2[$key]})
