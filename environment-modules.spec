@@ -1,7 +1,7 @@
 %global __os_install_post %(echo '%{__os_install_post}' | sed -e 's!/usr/lib[^[:space:]]*/brp-python-bytecompile[[:space:]].*$!!g')
 Name:           environment-modules
-Version:        3.2.9c
-Release:        6%{?dist}
+Version:        3.2.10
+Release:        1%{?dist}
 Summary:        Provides dynamic modification of a user's environment
 
 Group:          System Environment/Base
@@ -9,9 +9,10 @@ License:        GPLv2+
 URL:            http://modules.sourceforge.net/
 Source0:        http://downloads.sourceforge.net/modules/modules-%{version}.tar.bz2
 Source1:        modules.sh
+Source2:        createmodule.sh
+Source3:        createmodule.py
 Patch0:         environment-modules-3.2.7-bindir.patch
 Patch1:         environment-modules-3.2.9-clear.patch
-Patch2:         environment-modules-3.2.9-invalid-regexp-pointer.patch
 Patch3:         environment-modules-3.2.9-module-path.patch
 Patch4:         environment-modules-3.2.9-gcc-no-strict.patch
 Patch5:         environment-modules-3.2.9-call-test-by-full-path-in-csh.patch
@@ -47,10 +48,9 @@ have access to the module alias.
 
 
 %prep
-%setup -q -n modules-3.2.9
+%setup -q -n modules-%{version}
 %patch0 -p1 -b .bindir
 %patch1 -p1 -b .clear
-%patch2 -p1 -b .invalid-rp
 %patch3 -p1 -b .module-path
 %patch4 -p1 -b .gcc-no-strict
 %patch5 -p1 -b .call-test-by-full-path-in-csh
@@ -71,6 +71,7 @@ rm -rf $RPM_BUILD_ROOT
 make install DESTDIR=$RPM_BUILD_ROOT
 mkdir -p $RPM_BUILD_ROOT%{_sysconfdir}/profile.d
 cp -p %SOURCE1 $RPM_BUILD_ROOT%{_sysconfdir}/profile.d/modules.sh
+cp -p %SOURCE2 %SOURCE3 $RPM_BUILD_ROOT%{_datadir}/Modules/bin
 ln -s %{_datadir}/Modules/init/csh $RPM_BUILD_ROOT%{_sysconfdir}/profile.d/modules.csh
 mkdir -p $RPM_BUILD_ROOT%{_sysconfdir}/modulefiles
 
@@ -99,6 +100,11 @@ rm -rf $RPM_BUILD_ROOT
 
 
 %changelog
+* Thu Mar 13 2014 Jan Synáček <jsynacek@redhat.com> - 3.2.10-1
+- Rebase to 3.2.10
+- Drop regexp patch
+- Resolves: #976369
+
 * Tue May 14 2013 Jan Synáček <jsynacek@redhat.com> - 3.2.9c-6
 - Call test command in csh alias by its full path (bug #929007)
 - Correctly preserve the target file that the config symlink points to
